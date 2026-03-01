@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -14,6 +13,22 @@ jobs:
       # Étape 1 - Récupération du code source
       - name: Récupération du code source
         uses: actions/checkout@v4
+
+      # ========== PARTIE MANQUANTE AJOUTÉE ICI ==========
+      # Setup Java pour compiler le JAR
+      - name: Setup Java 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      # Compiler le JAR Spring Boot (obligatoire pour l'image Docker)
+      - name: Build Spring Boot JAR
+        run: |
+          cd springboot/app
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
+      # ========== FIN DE LA PARTIE AJOUTÉE ==========
 
       # Étape 2 - Connexion à Docker Hub avec les secrets
       - name: Connexion à Docker Hub
@@ -38,13 +53,14 @@ jobs:
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
 
       # Étape 3 - Test de l'application avec Docker Compose
+      # Note: Utiliser 'docker compose' (v2) au lieu de 'docker-compose' (v1)
       - name: Lancement de l'application avec Docker Compose
-        run: docker-compose up -d
+        run: docker compose up -d
 
       - name: Vérification du démarrage des conteneurs
         run: |
           sleep 30
-          docker-compose ps
+          docker compose ps
 
       - name: Vérification de la communication frontend/backend
         run: |
@@ -56,5 +72,4 @@ jobs:
       # Affichage des logs en cas d'échec
       - name: Affichage des logs en cas d'échec
         if: failure()
-        run: docker-compose logs
-
+        run: docker compose logs
