@@ -1,0 +1,59 @@
+name: CI Pipeline
+
+# Étape 1 - Déclencheur sur push sur main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Étape 1 - Récupération du code source
+      - name: Récupération du code source
+        uses: actions/checkout@v4
+
+      # Étape 2 - Connexion à Docker Hub avec les secrets
+      - name: Connexion à Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Étape 2 - Construction de l'image backend
+      - name: Construction de l'image backend
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest ./springboot/app
+
+      # Étape 2 - Construction de l'image frontend
+      - name: Construction de l'image frontend
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest ./angular-app
+
+      # Étape 2 - Publication des images sur Docker Hub
+      - name: Publication de l'image backend
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
+
+      - name: Publication de l'image frontend
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+
+      # Étape 3 - Test de l'application avec Docker Compose
+      - name: Lancement de l'application avec Docker Compose
+        run: docker-compose up -d
+
+      - name: Vérification du démarrage des conteneurs
+        run: |
+          sleep 30
+          docker-compose ps
+
+      - name: Vérification de la communication frontend/backend
+        run: |
+          echo "Vérification du backend (port 8081)..."
+          curl -f http://localhost:8081/actuator/health && echo "✅ Backend OK" || echo "❌ Backend ne répond pas"
+          echo "Vérification du frontend (port 4200)..."
+          curl -f http://localhost:4200 && echo "✅ Frontend OK" || echo "❌ Frontend ne répond pas"
+
+      # Affichage des logs en cas d'échec
+      - name: Affichage des logs en cas d'échec
+        if: failure()
+        run: docker-compose logs
